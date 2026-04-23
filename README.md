@@ -2,6 +2,8 @@
 
 Fantasy AI Trading Card Game on Stellar. Collect, upgrade, merge, and battle with NFT cards representing the world's top AI companies — OpenAI, Anthropic, xAI, Cursor, Deepseek, and more.
 
+**Demo Video:** [https://youtu.be/DQXrrWuChuc](https://youtu.be/DQXrrWuChuc)
+
 ## How It Works
 
 1. **Buy packs** (0.1 XLM) → get 5 random cards
