@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+target/
+
+# Environment files
+.env
+.env.local
+.env.production
+server/.env
+frontend/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vite
+frontend/.vite/
+
+# Rust/Cargo
+contracts/aidecks/target/
+**/*.wasm
+
+# Editor
+.vscode/
+.idea/
+*.swp
