@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Share2, Calendar, Star, Hash, Layers, ExternalLink, TrendingUp, Building2 } from 'lucide-react';
 import { CardData, Rarity } from '../types';
-import { STARTUPS, getActiveContracts } from '../lib/stellar';
+import { STARTUPS } from '../lib/stellar';
 import { MOCK_STARTUPS } from '../constants';
 import { getActiveNetwork } from '../lib/networks';
 
@@ -230,7 +230,7 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({ data, cardData, onClo
                             <div className="space-y-3">
                                 {tokenId !== undefined && (
                                     <a
-                                        href={`${getActiveNetwork().explorerUrl}/contract/${getActiveContracts().AIDecks_NFT}`}
+                                        href={`${getActiveNetwork().explorerUrl}/contract/${getActiveNetwork().contractId}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="w-full py-3.5 px-4 bg-yc-aleo text-white rounded-lg font-bold text-sm hover:bg-yc-aleo/80 transition-colors flex items-center justify-center"
