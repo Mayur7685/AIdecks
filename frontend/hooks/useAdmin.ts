@@ -44,7 +44,7 @@ export function useAdmin() {
     const [error, setError] = useState<string | null>(null);
     const { address } = useWalletContext();
 
-    const adminKey = () => localStorage.getItem('aidecks:admin-key') || '';
+    const adminKey = () => localStorage.getItem('adminKey') || '';
 
     const callBackend = async (path: string, body: any = {}) => {
         const res = await fetch(apiUrl(`/api/admin${path}`), {
