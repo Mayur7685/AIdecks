@@ -10,6 +10,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5170',
   'http://localhost:5173',
   'https://stellar.aidecks.fun',
+  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()) : []),
 ];
 app.use(cors({
   origin: (origin, cb) => {
