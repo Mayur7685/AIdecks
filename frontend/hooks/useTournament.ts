@@ -83,7 +83,7 @@ export function useTournament() {
             ], signerAddress);
             await waitForTransaction(hash);
             // Register player for leaderboard tracking
-            const apiBase = (import.meta as any).env?.VITE_API_URL || '';
+            const apiBase = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/api$/, '');
             fetch(`${apiBase}/leaderboard/${tournamentId}/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

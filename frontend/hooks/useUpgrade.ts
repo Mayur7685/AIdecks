@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { callContract, waitForTransaction } from '../lib/stellar';
 import { useWalletContext } from '../context/WalletContext';
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+const API_URL = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/api$/, '');
 function apiUrl(path: string) { return API_URL ? `${API_URL}${path}` : path; }
 
 const DEFAULT_CHANCES: Record<number, number> = { 1: 80, 2: 70, 3: 60, 4: 50 };

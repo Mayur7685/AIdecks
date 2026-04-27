@@ -3,7 +3,7 @@ import { readContract, callContract, waitForTransaction, STARTUPS } from '../lib
 import { STELLAR_ADMIN } from '../lib/networks';
 import { useWalletContext } from '../context/WalletContext';
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+const API_URL = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/api$/, '');
 function apiUrl(path: string) { return API_URL ? `${API_URL}${path}` : path; }
 
 export const ADMIN_ADDRESSES = [STELLAR_ADMIN.toLowerCase()];
