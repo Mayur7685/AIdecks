@@ -2,8 +2,6 @@
 
 A fully on-chain fantasy trading card game featuring 19 top AI companies (OpenAI, Anthropic, xAI, Cursor, Deepseek, etc.) as collectible NFT cards. Built on Stellar blockchain with Soroban smart contracts.
 
-![AIDecks](./frontend/public/aidecks.png)
-
 ## 🎮 Game Features
 
 ### Card System
@@ -23,11 +21,16 @@ A fully on-chain fantasy trading card game featuring 19 top AI companies (OpenAI
 - **Prizes**: Auto-distributed on finalize (50% → 1st, 30% → 2nd, rest carries forward)
 - **Leaderboard**: Real-time rankings with expandable squad view
 
+### Marketplace
+- **Fixed-price listings**: List any card for XLM
+- **Transaction history**: View all your buys/lists/cancels via Stellar Horizon
+- **My Activity**: Track active listings and past trades
+- **Listed badge**: Cards on marketplace show blue "LISTED" tag
+
 ### AI Card Recommendation
 - **Smart lineup suggestions**: AI analyzes your card collection + current startup scores to recommend the best 5 cards for tournament entry
 - **Powered by OpenRouter**: Uses free LLM models (Gemma, Qwen, etc.) with automatic fallback chain
 - **Context-aware**: Considers card rarity, level, and recent AI startup performance data
-- **Accessible from Portfolio**: "AI Recommend" button when entering a tournament
 
 ### Twitter/X Scoring Engine
 Cards are scored daily based on real Twitter/X activity of each AI company:
@@ -36,28 +39,19 @@ Cards are scored daily based on real Twitter/X activity of each AI company:
 |-------|------------|
 | Funding round | 500–3000 (scales with amount) |
 | Partnership announcement | 300+ (bonus for major partners) |
-| Key hire (C-level) | 150–200 |
 | Product launch / model release | 400 |
+| Key hire (C-level) | 150–200 |
 | Viral tweet (10k+ likes) | 200–500 |
 | Benchmark result | 250 |
 | Open source release | 350 |
-| Community engagement | 50–150 |
 
 **How it works**:
-1. **Daily cron** runs at 00:10 UTC via `node-cron`
-2. Fetches tweets from each startup's Twitter handle via `twitterapi.io` advanced search
-3. AI (OpenRouter LLM) analyzes each tweet and classifies the event type
-4. Points calculated and stored in `server/data/daily-scores/`
-5. Aggregated scores (last 10 days) used for tournament scoring and AI card recommendations
+1. Daily cron runs at 00:10 UTC
+2. Fetches tweets from each startup's Twitter handle via `twitterapi.io`
+3. AI (OpenRouter LLM) classifies each tweet's event type
+4. Points stored in `server/data/daily-scores/`
+5. Aggregated scores (last 10 days) used for tournament scoring + AI recommendations
 6. Live feed shows recent tweet events in the Feed section
-
-**Env var required**: `TWITTER_API_KEY` (from twitterapi.io) + `OPENROUTER_API_KEY`
-
-### Marketplace
-- **Fixed-price listings**: List any card for XLM
-- **Transaction history**: View all your buys/lists/cancels via Stellar Horizon
-- **My Activity**: Track active listings and past trades
-- **Listed badge**: Cards on marketplace show blue "LISTED" tag
 
 ### Admin Panel
 - **Tournament Management**: Create, finalize with scores, cancel
@@ -254,10 +248,11 @@ cargo test
 2. **Buy packs** (1 XLM = 5 cards)
 3. **Open packs** from Portfolio → get random cards
 4. **Merge cards** (3 same-rarity → 1 higher-rarity)
-5. **Enter tournament** during registration (lock 5 cards)
-6. **Wait for results** — admin finalizes with AI startup scores
-7. **Prizes auto-distributed** to top 2 players
-8. **Trade on marketplace** — list/buy cards anytime
+5. **Enter tournament** during registration (lock 5 cards) — use AI recommendation for best lineup
+6. **Wait for results** — admin finalizes with AI startup scores from Twitter data
+7. **Prizes auto-distributed** to top 2 players (50% / 30%)
+8. **View past tournaments** in Leagues → Tournament History section
+9. **Trade on marketplace** — list/buy cards anytime, view full trade history
 
 ### For Admins
 1. **Create tournament** with 3 timestamps (reg/start/end)
@@ -352,12 +347,5 @@ MIT
 
 ---
 
-## 📞 Support
-
-- **Issues**: GitHub Issues
-- **Discord**: [Join our server](#)
-- **Twitter**: [@aidecks](#)
-
----
 
 Built with ❤️ on Stellar

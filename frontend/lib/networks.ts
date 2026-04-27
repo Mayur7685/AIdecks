@@ -45,7 +45,7 @@ export const NETWORKS: Record<string, NetworkConfig> = {
             MarketplaceV2: STELLAR_CONTRACT_ID,
             TokenLeagues: STELLAR_CONTRACT_ID,
         },
-        apiBase: '/api',
+        apiBase: import.meta.env.VITE_API_URL || '/api',
         packPrice: 1_000_000n, // 0.1 XLM in stroops
         icon: '',
         deployed: true,
