@@ -6,7 +6,7 @@ Soroban smart contract (Rust/WASM) powering the AIDecks fantasy AI trading card 
 
 | Network | Contract ID |
 |---|---|
-| Testnet | `CCSL4SAOMLL42F5HSYABSQXA7KXKXJY4OMDPRM5TXQI7VJ6JS7FNMX5G` |
+| Testnet | `CCIH2IGK6KAKRBTS4VNHAEHB4CK6OUIA3QWOCKEILVFFZ6V6N5XMITRG` |
 | Admin | `GCXKQ77XJHWKDGZ5ENGPSJEM22XZVRVYI5WO6JBCIHZGTS7TLSRV6SWW` |
 
 ---
@@ -28,7 +28,7 @@ CardData {
     startup_id: u32,  // 1-19 (maps to AI company)
     rarity: u32,      // 0=Common 1=Rare 2=Epic 3=Legendary
     level: u32,       // 1-5 (upgrade level)
-    locked: bool,     // true when in tournament or listed
+    locked: bool,     // true when in tournament
 }
 
 TournamentData {
@@ -37,7 +37,7 @@ TournamentData {
     end_time: u64,
     status: u32,      // 0=Open 2=Finalized 3=Cancelled
     entry_count: u32,
-    prize_pool: i128, // XLM stroops
+    prize_pool: i128, // XLM stroops (remaining after auto-distribution)
 }
 
 CardListing {
@@ -55,8 +55,10 @@ CardListing {
 - `PendingPacks(Address)` — unopened pack count
 - `OpenRequests(Address)` — pending open requests (awaiting admin fulfillment)
 - `Tournament(u32)` — tournament data
+- `TournamentPlayers(u32)` — Vec of all player addresses who entered
 - `PlayerLineup(u32, Address)` — 5 card IDs entered in tournament
 - `PlayerScore(u32, Address)` — calculated tournament score
+- `StartupScores(u32)` — Vec<u64> of 19 scores for a tournament
 - `Listing(u32)` — marketplace listing by token ID
 - `ReferralEarnings(Address)` — total XLM earned from referrals
 
@@ -86,10 +88,6 @@ CardListing {
 
 ### `card.rs` — Card Operations
 
-**`transfer_card(from, to, token_id)`**
-- Transfers ownership, updates `OwnerCards` lists for both addresses
-- Card must not be locked
-
 **`merge_cards(player, token_a, token_b, token_c, new_startup_id)`**
 - Burns 3 cards of the same rarity
 - Mints 1 card of the next rarity tier
@@ -100,7 +98,7 @@ CardListing {
 - Admin rolls success probability server-side, then calls this
 - Success rates: Level 1→2: 80%, 2→3: 70%, 3→4: 60%, 4→5: 50%
 - On success: increments card level
-- On failure: **card is burned permanently**
+- On failure: card is burned permanently
 
 ---
 
@@ -112,34 +110,27 @@ CardListing {
 
 **`enter_tournament(player, tournament_id, card_ids: Vec<u32>)`**
 - Player selects 5 cards for their lineup
-- Cards are **locked** (cannot be traded/upgraded) until tournament ends
-- Must be called during registration window
+- Cards are **locked** until tournament is finalized or cancelled
+- Must be called during registration window (`reg_start ≤ now < start_time`)
+- Player address tracked in `TournamentPlayers(tournament_id)`
 
-**`set_startup_scores(tournament_id, scores: Vec<u64>)`** *(admin only)*
-- Admin publishes 19 scores (one per AI company) after scoring period
-- Scores are based on Twitter/X activity aggregated by the backend
-
-**`calculate_score(player, tournament_id)`**
-- Player calls this after scores are published
-- Score = Σ (startup_score[i] × card_level[i]) for all 5 cards
-- Stored in `PlayerScore(tournament_id, player)`
-
-**`finalize_tournament(tournament_id)`** *(admin only)*
-- Marks tournament as finalized (status = 2)
-- Must be called after `end_time`
-
-**`distribute_prize(winner, amount, tournament_id)`** *(admin only)*
-- Transfers XLM from admin to winner
-- Decrements `prize_pool`
-- Marks `PrizeClaimed(tournament_id, winner)`
-
-**`unlock_cards(player, tournament_id)`**
-- Player calls after tournament is finalized or cancelled
-- Unlocks all 5 lineup cards
+**`finalize_tournament(tournament_id, scores: Vec<u64>)`** *(admin only)*
+- Accepts 19 startup scores (one per AI company)
+- Auto-calculates every player's score: Σ(startup_score × card_level) for 5 cards
+- **Auto-distributes prizes in one transaction:**
+  - 50% → 1st place player
+  - 30% → 2nd place player
+  - Remainder stays in `prize_pool` (carries forward to next tournament)
+- Unlocks all players' cards
+- Sets status = 2 (Finalized)
 
 **`cancel_tournament(tournament_id)`** *(admin only)*
 - Sets status = 3 (Cancelled)
 - Players can then unlock their cards
+
+**`distribute_prize(winner, amount, tournament_id)`** *(admin only)*
+- Manual prize distribution for edge cases
+- Transfers XLM from admin to winner, decrements `prize_pool`
 
 ---
 
@@ -164,14 +155,19 @@ CardListing {
 
 | Function | Returns |
 |---|---|
-| `get_card(token_id)` | `CardData` |
-| `get_card_owner(token_id)` | `Address` |
+| `get_card(token_id)` | `Option<CardData>` |
+| `get_card_owner(token_id)` | `Option<Address>` |
 | `get_cards_of(owner)` | `Vec<u32>` (token IDs) |
-| `get_tournament(id)` | `TournamentData` |
+| `get_tournament(id)` | `Option<TournamentData>` |
+| `get_tournament_players(tournament_id)` | `Vec<Address>` |
+| `get_player_lineup(tournament_id, player)` | `Vec<u32>` |
+| `get_player_score(tournament_id, player)` | `u64` |
+| `get_startup_scores(tournament_id)` | `Option<StartupScores>` |
 | `get_listing(token_id)` | `Option<CardListing>` |
 | `get_pending_packs(player)` | `u32` |
 | `get_open_requests(player)` | `u32` |
-| `get_referral_earnings(referrer)` | `i128` |
+| `get_player_entered(tournament_id, player)` | `bool` |
+| `get_next_tournament_id()` | `u32` |
 | `get_total_cards_minted()` | `u32` |
 | `get_total_packs_sold()` | `u32` |
 | `get_pack_price()` | `i128` |
@@ -211,8 +207,7 @@ CardListing {
 rustup target add wasm32v1-none
 
 # Build
-stellar contract build
-# Output: target/wasm32v1-none/release/aidecks.wasm
+cargo build --target wasm32v1-none --release
 
 # Deploy to testnet
 stellar contract deploy \
@@ -233,13 +228,15 @@ stellar contract invoke \
 
 ```bash
 cargo test
+# 4 tests: initialize, buy+open pack, marketplace list+buy, tournament create+enter+finalize
 ```
 
 ---
 
 ## Security Notes
 
-- Admin key is required for: `open_pack`, `upgrade_card`, `create_tournament`, `set_startup_scores`, `finalize_tournament`, `distribute_prize`, `cancel_tournament`, `set_pack_price`
+- Admin-only functions: `open_pack`, `upgrade_card`, `create_tournament`, `finalize_tournament`, `distribute_prize`, `cancel_tournament`, `set_pack_price`
 - All user-facing functions use `address.require_auth()` — Freighter handles signing
-- Cards are locked during tournament entry and marketplace listings to prevent double-use
-- Prize funds are held in admin's XLM balance and tracked in `prize_pool` mapping
+- Cards locked during tournament entry — cannot be traded or upgraded until finalized/cancelled
+- Prize auto-distribution happens atomically in `finalize_tournament` — no separate claim step needed
+- Remaining prize pool carries forward to next tournament automatically

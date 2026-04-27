@@ -2,6 +2,8 @@
 
 A fully on-chain fantasy trading card game featuring 19 top AI companies (OpenAI, Anthropic, xAI, Cursor, Deepseek, etc.) as collectible NFT cards. Built on Stellar blockchain with Soroban smart contracts.
 
+Demo Video: https://youtu.be/F3oGTv4SIqQ
+
 ## 🎮 Game Features
 
 ### Card System
@@ -167,6 +169,20 @@ stellar contract invoke \
   --pack_price 1000000
 ```
 
+## 🌐 Current Deployment (Testnet)                                                                                                                                                              
+                                                                                                                                                                                                  
+| | Value |                                                                                                                                                                                     
+|--|--|                                                                                                                                                                                         
+| **Network** | Stellar Testnet |                                                                                                                                                               
+| **Contract ID** | `CCIH2IGK6KAKRBTS4VNHAEHB4CK6OUIA3QWOCKEILVFFZ6V6N5XMITRG` |                                                                                                                
+| **Admin Address** | `GCXKQ77XJHWKDGZ5ENGPSJEM22XZVRVYI5WO6JBCIHZGTS7TLSRV6SWW` |                                                                                                              
+| **RPC URL** | `https://soroban-testnet.stellar.org` |                                                                                                                                         
+| **Frontend** | https://aipacks-stellar.vercel.app |                                                                                                                                           
+| **Backend** | https://aidecks.onrender.com |                                                                                                                                                  
+| **Explorer** | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CCIH2IGK6KAKRBTS4VNHAEHB4CK6OUIA3QWOCKEILVFFZ6V6N5XMITRG) |                                          
+                                                                                                                                                                                                  
+> ⚠️ Currently on **testnet** — XLM used is test tokens with no real value. 
+
 ### 2. Backend
 ```bash
 cd server
@@ -196,8 +212,8 @@ npm install
 
 # Create .env
 cat > .env << EOF
-VITE_CONTRACT_ID=<your_contract_id>
-VITE_ADMIN_ADDRESS=<your_admin_address>
+VITE_CONTRACT_ID=CCIH2IGK6KAKRBTS4VNHAEHB4CK6OUIA3QWOCKEILVFFZ6V6N5XMITRG
+VITE_ADMIN_ADDRESS=GCXKQ77XJHWKDGZ5ENGPSJEM22XZVRVYI5WO6JBCIHZGTS7TLSRV6SWW
 VITE_API_URL=http://localhost:5170
 VITE_NETWORK=testnet
 VITE_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
