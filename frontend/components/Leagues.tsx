@@ -75,10 +75,7 @@ const RARITY_CHIP: Record<string, string> = {
 };
 
 const STARTUP_ID_BY_NAME: Record<string, number> = {
-    'Openclaw': 1, 'Lovable': 2, 'Cursor': 3, 'OpenAI': 4, 'Anthropic': 5,
-    'Browser Use': 6, 'Dedalus Labs': 7, 'Autumn': 8,
-    'Axiom': 9, 'Multifactor': 10, 'Dome': 11, 'GrazeMate': 12, 'Tornyol Systems': 13,
-    'Pocket': 14, 'Caretta': 15, 'AxionOrbital Space': 16, 'Freeport Markets': 17, 'Ruvo': 18, 'Lightberry': 19,
+    'OpenAI': 1, 'Anthropic': 2, 'Google DeepMind': 3, 'xAI': 4, 'Midjourney': 5, 'Meta AI': 6, 'Alibaba': 7, 'Z AI': 8, 'Cursor': 9, 'Deepseek': 10, 'Windsurf': 11, 'Antigravity': 12, 'MiniMax': 13, 'Mistral AI': 14, 'Kiro': 15, 'Perplexity': 16, 'Cohere': 17, 'Moonshot AI': 18, 'Sarvam AI': 19,
 };
 
 const Leagues: React.FC = () => {
@@ -182,8 +179,8 @@ const Leagues: React.FC = () => {
                     // Has admin published final scores on-chain yet?
                     try {
                         const { readContract } = await import('../lib/stellar');
-                        const hash = await readContract('scores_hash', `${tournamentIdToLoad}field`);
-                        setScoresPublished(!!hash);
+                        const scores = await readContract('get_startup_scores', [tournamentIdToLoad]);
+                        setScoresPublished(!!scores);
                     } catch { setScoresPublished(false); }
 
                     // My computed score (only after user calls calculate_score)
@@ -372,21 +369,31 @@ const Leagues: React.FC = () => {
             return;
         }
         setExpandedPlayer(playerAddress);
-        setSquadCards([]);
         setSquadScores({});
         setSquadLoading(true);
         try {
-            const [cardsRes, scoresRes] = await Promise.all([
-                fetch(apiUrl(`/player/${playerAddress}/cards/${activeTournamentId}`)),
-                fetch(apiUrl(`/player/${playerAddress}/card-scores/${activeTournamentId}`))
-            ]);
-            const cardsData = await cardsRes.json();
-            if (cardsData.success) {
-                setSquadCards(cardsData.data);
-            }
-            const scoresData = await scoresRes.json();
-            if (scoresData.success) {
-                setSquadScores(scoresData.data);
+            // Use lineup data already in leaderboard response
+            const player = leaderboardData.find(p => p.address === playerAddress);
+            if (player && (player as any).lineup?.length) {
+                setSquadCards((player as any).lineup.map((c: any) => ({
+                    tokenId: c.tokenId,
+                    name: c.name,
+                    rarity: c.rarity,
+                    level: c.level,
+                    image: `/images/${c.startupId}.png`,
+                    startupId: c.startupId,
+                })));
+            } else {
+                // Fallback: fetch from contract
+                const { readContract } = await import('../lib/stellar');
+                const lineupIds = await readContract<number[]>('get_player_lineup', [activeTournamentId, playerAddress]).catch(() => []);
+                const cards = await Promise.all((lineupIds || []).map(async (tid: number) => {
+                    const card = await readContract<any>('get_card', [tid]).catch(() => null);
+                    if (!card) return null;
+                    const sid = Number(card.startup_id ?? 0);
+                    return { tokenId: tid, name: `AI #${sid}`, rarity: ['Common','Rare','Epic','Legendary'][Number(card.rarity??0)], level: Number(card.level??1), image: `/images/${sid}.png`, startupId: sid };
+                }));
+                setSquadCards(cards.filter(Boolean) as any[]);
             }
         } catch { /* silently fail */ }
         setSquadLoading(false);
@@ -748,7 +755,7 @@ const Leagues: React.FC = () => {
                             {getPhaseLabel()}
                         </span>
                         <span className="px-2 py-0.5 bg-gray-300 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[10px] font-bold uppercase rounded flex items-center">
-                            <Clock size={10} className="mr-1" /> {timeInfo.value} {phase !== 'ended' ? 'left' : ''}
+                            <Clock size={10} className="mr-1" /> {timeInfo.value} {phase !== 'ended' && phase !== 'finalized' ? 'left' : ''}
                         </span>
                         {hasUserEntered && (
                             <span className="px-2 py-0.5 bg-yc-green/20 text-yc-green text-[10px] font-bold uppercase rounded flex items-center">
@@ -786,7 +793,7 @@ const Leagues: React.FC = () => {
                         >
                             <Wallet className="w-4 h-4 mr-2" /> Connect to Enter
                         </button>
-                    ) : phase === 'finalized' && hasUserEntered ? (
+                    ) : (phase === 'finalized' || activeTournament?.status === 'Cancelled') ? (
                         hasClaimed ? (
                             <span className="text-yc-green font-bold flex items-center">
                                 <CheckCircle className="w-5 h-5 mr-2" /> Prize claimed!
@@ -806,7 +813,11 @@ const Leagues: React.FC = () => {
                                 )}
                             </button>
                         ) : (
-                            <span className="text-gray-500 font-bold">Tournament finalized - no prize earned</span>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-yc-green font-bold flex items-center gap-2">
+                                    <CheckCircle className="w-5 h-5" /> Tournament Complete — prizes auto-distributed
+                                </span>
+                            </div>
                         )
                     ) : hasUserEntered ? (
                         <div className="flex flex-col items-start gap-2">
@@ -848,61 +859,23 @@ const Leagues: React.FC = () => {
                                     </button>
                                 )}
 
-                                {(phase === 'finalized' || activeTournament?.status === 'Cancelled') && (
-                                    <button
-                                        onClick={async () => {
-                                            setIsUnlocking(true);
-                                            setUnlockMsg('');
-                                            try {
-                                                const signer = await getSigner();
-                                                if (!signer) return;
-
-                                                // Only one tournament runs at a time, so if lineup isn't in localStorage
-                                                // (edge case: different browser/device), the user's 5 locked cards
-                                                // are by definition the ones they entered with.
-                                                let fallback: [any, any, any, any, any] | undefined;
-                                                if (address) {
-                                                    const cards = await getCards(address);
-                                                    const locked = cards.filter((c: any) => c.isLocked);
-                                                    if (locked.length === 5) fallback = locked as any;
-                                                }
-
-                                                const result = await unlockCards(signer, activeTournamentId, fallback);
-                                                if (!result.success) {
-                                                    setUnlockMsg(result.error || 'Unlock failed');
-                                                } else {
-                                                    setUnlockMsg('✅ Cards unlocked — refreshing…');
-                                                    setTimeout(async () => {
-                                                        clearCache();
-                                                        await getCards(address!);
-                                                        setUnlockMsg('');
-                                                    }, 4000);
-                                                }
-                                            } finally {
-                                                setIsUnlocking(false);
-                                            }
-                                        }}
-                                        disabled={isUnlocking}
-                                        className="bg-orange-500 hover:opacity-90 text-white px-5 py-2 rounded-lg font-black text-xs uppercase tracking-wide transition-all flex items-center shadow-lg disabled:opacity-60"
-                                    >
-                                        {isUnlocking ? 'Unlocking…' : 'Unlock My Cards'}
-                                    </button>
-                                )}
+                                {(phase === 'finalized' || activeTournament?.status === 'Cancelled') && null}
                             </div>
 
                             {!scoresPublished && (phase === 'active' || phase === 'ended') && (
                                 <span className="text-gray-500 text-xs">Awaiting admin to publish final scores…</span>
                             )}
                             {scoreMsg && <span className="text-xs text-gray-300">{scoreMsg}</span>}
-                            {unlockMsg && <span className="text-xs text-gray-300">{unlockMsg}</span>}
                         </div>
-                    ) : (phase === 'registration' || phase === 'active') ? (
+                    ) : phase === 'registration' ? (
                         <button
                             onClick={() => setIsJoining(true)}
                             className="bg-yc-aleo text-white hover:bg-yc-aleo/80 px-5 sm:px-8 py-2.5 sm:py-3 rounded-lg font-black text-xs sm:text-sm uppercase tracking-wide transition-all flex items-center shadow-[0_0_20px_rgba(249, 115, 22,0.2)] hover:shadow-[0_0_20px_rgba(249, 115, 22,0.4)]"
                         >
                             Enter League <ArrowRight className="w-4 h-4 ml-2" />
                         </button>
+                    ) : phase === 'active' ? (
+                        <span className="text-gray-500 font-bold">Registration closed — tournament in progress</span>
                     ) : phase === 'upcoming' ? (
                         <span className="text-orange-500 dark:text-orange-400 font-bold">Registration opens soon</span>
                     ) : phase === 'ended' ? (

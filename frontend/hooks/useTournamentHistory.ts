@@ -52,11 +52,11 @@ export function useTournamentHistory(activeTournamentId: number) {
                 // Sequential to avoid any WASM/network race quirks
                 for (let id = 1; id <= activeTournamentId; id++) {
                     try {
-                        const data = await readContract('tournaments', `${id}field`);
-                        if (!data) { console.log('[useTournamentHistory] t#', id, 'no data'); continue; }
+                        const data = await readContract<any>('get_tournament', [id]).catch(() => null);
+                        if (!data) { console.log('[useTournamentHistory] t#', id, 'no data - stopping'); break; }
                         const getField = (k: string) => {
-                            const m = data.match(new RegExp(`${k}:\\s*(\\d+)u\\d+`));
-                            return m ? parseInt(m[1]) : 0;
+                            const v = data[k];
+                            return v !== undefined ? Number(v) : 0;
                         };
                         const status = getField('status');
                         const statusStr = STATUS_MAP[status] || 'Unknown';
@@ -73,16 +73,16 @@ export function useTournamentHistory(activeTournamentId: number) {
 
                         list.push({
                             tournamentId: id,
-                            startTime: getField('start_height'),
-                            endTime: getField('end_height'),
-                            prizePool: BigInt(getField('prize_pool')),
+                            startTime: getField('start_time'),
+                            endTime: getField('end_time'),
+                            prizePool: BigInt(getField('prize_pool') ?? 0),
                             entryCount: getField('entry_count'),
                             status: statusStr,
                             userScore: 0n,
                             userPrize: 0n,
                             claimed: false,
                             entered,
-                            canUnlock,
+                            canUnlock: false,
                             hasSavedLineup,
                         });
                     } catch (e) {

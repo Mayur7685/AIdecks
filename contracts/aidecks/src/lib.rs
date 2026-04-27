@@ -6,8 +6,9 @@ mod card;
 mod pack;
 mod tournament;
 mod marketplace;
+mod test;
 
-use types::{CardData, CardListing, DataKey, TournamentData};
+use types::{CardData, CardListing, DataKey, TournamentData, StartupScores};
 
 #[contract]
 pub struct UnicornX;
@@ -76,8 +77,8 @@ impl UnicornX {
         tournament::calculate_score(env, player, tournament_id);
     }
 
-    pub fn finalize_tournament(env: Env, tournament_id: u32) {
-        tournament::finalize_tournament(env, tournament_id);
+    pub fn finalize_tournament(env: Env, tournament_id: u32, scores: Vec<u64>) {
+        tournament::finalize_tournament(env, tournament_id, scores);
     }
 
     pub fn distribute_prize(env: Env, winner: Address, amount: i128, tournament_id: u32) {
@@ -106,20 +107,20 @@ impl UnicornX {
     }
 
     // ── Read-only ────────────────────────────────────────────────────
-    pub fn get_card(env: Env, token_id: u32) -> CardData {
-        env.storage().persistent().get(&DataKey::Card(token_id)).unwrap()
+    pub fn get_card(env: Env, token_id: u32) -> Option<CardData> {
+        env.storage().persistent().get(&DataKey::Card(token_id))
     }
 
-    pub fn get_card_owner(env: Env, token_id: u32) -> Address {
-        env.storage().persistent().get(&DataKey::CardOwner(token_id)).unwrap()
+    pub fn get_card_owner(env: Env, token_id: u32) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::CardOwner(token_id))
     }
 
     pub fn get_cards_of(env: Env, owner: Address) -> Vec<u32> {
         env.storage().persistent().get(&DataKey::OwnerCards(owner)).unwrap_or(Vec::new(&env))
     }
 
-    pub fn get_tournament(env: Env, id: u32) -> TournamentData {
-        env.storage().persistent().get(&DataKey::Tournament(id)).unwrap()
+    pub fn get_tournament(env: Env, id: u32) -> Option<TournamentData> {
+        env.storage().persistent().get(&DataKey::Tournament(id))
     }
 
     pub fn get_listing(env: Env, token_id: u32) -> Option<CardListing> {
@@ -148,5 +149,43 @@ impl UnicornX {
 
     pub fn get_pack_price(env: Env) -> i128 {
         env.storage().instance().get(&DataKey::PackPrice).unwrap_or(0)
+    }
+
+    pub fn get_next_tournament_id(env: Env) -> u32 {
+        env.storage().instance().get(&DataKey::NextTournamentId).unwrap_or(1)
+    }
+
+    pub fn get_player_entered(env: Env, tournament_id: u32, player: Address) -> bool {
+        env.storage().persistent()
+            .get(&DataKey::PlayerEntered(tournament_id, player))
+            .unwrap_or(false)
+    }
+
+    pub fn get_player_score(env: Env, tournament_id: u32, player: Address) -> u64 {
+        env.storage().persistent()
+            .get(&DataKey::PlayerScore(tournament_id, player))
+            .unwrap_or(0)
+    }
+
+    pub fn get_player_lineup(env: Env, tournament_id: u32, player: Address) -> Vec<u32> {
+        env.storage().persistent()
+            .get(&DataKey::PlayerLineup(tournament_id, player))
+            .unwrap_or(Vec::new(&env))
+    }
+
+    pub fn get_total_tournament_score(env: Env, tournament_id: u32) -> u64 {
+        env.storage().persistent()
+            .get(&DataKey::TotalTournamentScore(tournament_id))
+            .unwrap_or(0)
+    }
+
+    pub fn get_tournament_players(env: Env, tournament_id: u32) -> Vec<Address> {
+        env.storage().persistent()
+            .get(&DataKey::TournamentPlayers(tournament_id))
+            .unwrap_or(Vec::new(&env))
+    }
+
+    pub fn get_startup_scores(env: Env, tournament_id: u32) -> Option<StartupScores> {
+        env.storage().persistent().get(&DataKey::StartupScores(tournament_id))
     }
 }

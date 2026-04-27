@@ -4,7 +4,7 @@ import { useWalletContext } from '../context/WalletContext';
 import { useReferral } from '../hooks/useReferral';
 import { currencySymbol } from '../lib/networks';
 import ModelViewer3D from './ModelViewer3D';
-
+import { usePacks } from '../hooks/usePacks';
 import { useActiveTournament, useSharedTopStartups } from '../hooks/useSharedData';
 
 interface RightPanelProps {
@@ -15,7 +15,9 @@ const RightPanel: React.FC<RightPanelProps> = ({ onOpenPack }) => {
   const { isConnected } = useWalletContext();
   const { getReferralLink, referralStats } = useReferral();
   const [copied, setCopied] = useState(false);
-  const packPrice = '0.1';
+  const { getPackPrice } = usePacks();
+  const [packPrice, setPackPrice] = React.useState('0.1');
+  React.useEffect(() => { getPackPrice().then(p => setPackPrice((Number(p) / 10_000_000).toFixed(1))); }, []);
 
   const { data: tournament } = useActiveTournament();
   const { data: topStartups } = useSharedTopStartups(tournament?.id ?? null);

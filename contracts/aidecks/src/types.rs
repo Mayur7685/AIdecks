@@ -58,6 +58,7 @@ pub enum DataKey {
     PrizeClaimed(u32, Address),
     TotalTournamentScore(u32),
     StartupScores(u32),
+    TournamentPlayers(u32),  // Vec<Address> of all entrants
     Listing(u32),
     ReferrerOf(Address),
     ReferralCount(Address),

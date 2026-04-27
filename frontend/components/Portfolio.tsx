@@ -64,7 +64,9 @@ interface PortfolioProps {
 }
 
 const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefreshSignal }) => {
-    const packPriceLabel = '0.1';
+    const { getPackPrice } = usePacks();
+    const [packPriceLabel, setPackPriceLabel] = useState('0.1');
+    useEffect(() => { getPackPrice().then(p => setPackPriceLabel((Number(p) / 10_000_000).toFixed(1))); }, []);
     const networkId = getActiveNetworkId();
     // Re-render on marketplace syncing state changes so overlays appear/disappear
     const [, _forceMarketTick] = useState(0);
@@ -142,7 +144,8 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
     const { getCards, getCardInfo, getCardInfoWithRetry, mergeCards, isLoading, clearCache, updateServerCache } = useNFT();
     const { getUserPacks } = usePacks();
     const { upgradeCard, getUpgradeConfig, isLoading: upgradeLoading, statusMessage: upgradeStatusMsg } = useUpgrade();
-    const { listCard, listPack, createAuction, createPackAuction, getBidsForToken, getTokenStats, getTokenSaleHistory, loading: marketplaceLoading } = useMarketplaceV2();
+    const { listCard, listPack, createAuction, createPackAuction, getBidsForToken, getTokenStats, getTokenSaleHistory, loading: marketplaceLoading, getActiveListings } = useMarketplaceV2();
+    const [listedTokenIds, setListedTokenIds] = useState<Set<number>>(new Set());
     const { isVisible: showGuide, currentStep: guideStep, nextStep: guideNext, dismiss: guideDismiss } = useOnboarding('portfolio');
 
     // Auto-refresh cards with polling (disabled when not connected)
@@ -187,6 +190,10 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
     useEffect(() => {
         if (polledCards) {
             setMyCards(sortByRarity(polledCards));
+            // Fetch listings in parallel so badges are correct immediately
+            getActiveListings()
+                .then(l => setListedTokenIds(new Set(l.map(x => Number(x.tokenId)))))
+                .catch(() => {});
         }
     }, [polledCards]);
 
@@ -222,14 +229,19 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
         if (forceBlockchain) {
             clearCache();
             blockchainCache.invalidate(CacheKeys.userUnopenedPacks(address));
-            const [fresh] = await Promise.all([
+            const [fresh, listings] = await Promise.all([
                 getCards(address, true),
                 refreshPacks(),
+                getActiveListings().then(l => { setListedTokenIds(new Set(l.map(x => Number(x.tokenId)))); return l; }).catch(() => []),
             ]);
             setMyCards(sortByRarity(fresh));
             setIsRefreshing(false);
         } else {
-            await Promise.all([refreshCards(), refreshPacks()]);
+            await Promise.all([
+                refreshCards(),
+                refreshPacks(),
+                getActiveListings().then(l => setListedTokenIds(new Set(l.map(x => Number(x.tokenId))))).catch(() => {}),
+            ]);
         }
     };
 
@@ -493,26 +505,31 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
     }, [mergeStatus, pendingNewTokenId]);
 
     const finalizeMerge = async (newTokenId: number) => {
-        // Use the pre-started fetch (kicked off before animation) or fetch now as fallback
-        const newCard = pendingCardFetchRef.current
-            ? await pendingCardFetchRef.current
-            : await getCardInfoWithRetry(newTokenId, 3, 2000);
-        pendingCardFetchRef.current = null;
+        // newTokenId is a fake timestamp — find the real new card by fetching fresh card list
+        let newCard = null;
+        if (address) {
+            try {
+                const burnedIds = new Set(selectedCardIds);
+                const freshCards = await getCards(address);
+                // New card is one that wasn't in the burned set and wasn't in myCards before
+                const prevIds = new Set(myCards.map(c => c.tokenId));
+                newCard = freshCards.find(c => !burnedIds.has(c.tokenId) && !prevIds.has(c.tokenId))
+                    ?? freshCards.find(c => !burnedIds.has(c.tokenId)); // fallback
+            } catch { /* ignore */ }
+        }
 
         if (newCard) {
-            // Preload the image fully before showing success screen
             await new Promise<void>((resolve) => {
                 const img = new Image();
                 img.onload = () => resolve();
                 img.onerror = () => resolve();
-                img.src = newCard.image;
+                img.src = newCard!.image;
             });
             setNewlyForgedCard(newCard);
         }
 
         setMergeStatus('success');
 
-        // Surgical local update: remove 3 burned cards, add 1 new card (instant, no refetch)
         const burnedIds = new Set(selectedCardIds);
         setSelectedCardIds([]);
         setMyCards(prev => {
@@ -521,7 +538,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
             return sortByRarity(remaining);
         });
 
-        // Push incremental changes to server cache in background
         if (address) {
             updateServerCache(address, newCard ? [newCard] : undefined, [...burnedIds]);
         }
@@ -575,7 +591,11 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
                 return;
             }
 
-            await listCard(BigInt(cardToSell.tokenId), sellPrice);
+            const signerAddress = typeof signer === 'string' ? signer : signer?.address || address;
+            if (!signerAddress) { alert('Wallet not connected'); setIsSelling(false); return; }
+
+            const priceStroops = BigInt(Math.floor(parseFloat(sellPrice) * 10_000_000));
+            await listCard(signerAddress, cardToSell.tokenId, priceStroops);
 
             alert(`Card listed for ${sellPrice} ${currencySymbol()}!`);
             setSellModalOpen(false);
@@ -646,7 +666,13 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
 
         setIsSellingPack(true);
         try {
-            await listPack(BigInt(packToSell), packSellPrice);
+            const signer = await getSigner();
+            if (!signer) { alert('Please connect your wallet'); setIsSellingPack(false); return; }
+            const signerAddress = typeof signer === 'string' ? signer : signer?.address || address;
+            if (!signerAddress) { alert('Wallet not connected'); setIsSellingPack(false); return; }
+
+            const priceStroops = BigInt(Math.floor(parseFloat(packSellPrice) * 10_000_000));
+            await listCard(signerAddress, packToSell, priceStroops);
 
             alert(`Pack listed for ${packSellPrice} ${currencySymbol()}!`);
             setPackSellModalOpen(false);
@@ -1182,8 +1208,12 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
                                     {/* Level Badge */}
                                     <LevelBadge level={card.level || card.multiplier} />
 
-                                    {/* Locked Badge */}
-                                    {card.isLocked && (
+                                    {/* Locked / Listed Badge */}
+                                    {listedTokenIds.has(card.tokenId) ? (
+                                        <div className="absolute top-10 right-3 z-20 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded">
+                                            LISTED
+                                        </div>
+                                    ) : card.isLocked && (
                                         <div className="absolute top-10 right-3 z-20 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded">
                                             LOCKED
                                         </div>
@@ -1275,6 +1305,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onBuyPack, onOpenPacks, packRefre
             <CardDetailModal
                 data={viewingCard}
                 cardData={viewingCardData}
+                isListed={viewingCardData ? listedTokenIds.has(viewingCardData.tokenId) : false}
                 onClose={() => {
                     setViewingCard(null);
                     setViewingCardData(null);

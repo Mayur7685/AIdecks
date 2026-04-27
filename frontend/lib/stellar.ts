@@ -70,6 +70,7 @@ export async function readContract<T = any>(functionName: string, args: any[] = 
  * Build, sign with Freighter, and submit a contract call.
  */
 export async function callContract(functionName: string, args: any[], signerAddress: string): Promise<string> {
+    console.log(`[callContract] ${functionName}`, args.map(a => `${typeof a}:${String(a).slice(0,20)}`));
     const account = await rpc.getAccount(signerAddress);
     const contract = new Contract(STELLAR_CONTRACT_ID);
     const scArgs = args.map(toScVal);
@@ -166,19 +167,23 @@ export const ethers = {
 
 function toScVal(value: any): ReturnType<typeof nativeToScVal> {
     if (value === null || value === undefined) return xdr.ScVal.scvVoid();
-    // Already an ScVal
     if (value && typeof value === 'object' && value._arm !== undefined) return value;
-    // Stellar address (G... or C...)
     if (typeof value === 'string' && (value.startsWith('G') || value.startsWith('C')) && value.length >= 56) {
         return nativeToScVal(value, { type: 'address' });
     }
-    // bigint → i128 (Soroban uses i128 for token amounts)
-    if (typeof value === 'bigint') {
-        return nativeToScVal(value, { type: 'i128' });
+    if (typeof value === 'bigint') return nativeToScVal(value, { type: 'i128' });
+    // Array of numbers → Vec<u32>
+    if (Array.isArray(value)) {
+        return xdr.ScVal.scvVec(value.map(v =>
+            typeof v === 'number' ? nativeToScVal(v, { type: 'u32' }) : toScVal(v)
+        ));
     }
-    // plain number → u32 (for IDs, counts)
     if (typeof value === 'number' && Number.isInteger(value)) {
         return nativeToScVal(value, { type: 'u32' });
+    }
+    if (typeof value === 'string') {
+        // Non-address string — encode as bytes/symbol
+        return nativeToScVal(value, { type: 'string' });
     }
     return nativeToScVal(value);
 }

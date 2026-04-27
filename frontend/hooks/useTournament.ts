@@ -61,13 +61,20 @@ export function useTournament() {
 
     
     const enterTournament = useCallback(async (
-        signerAddress: string,
+        signerOrAddress: any,
         tournamentId: number,
-        cardIds: number[]
+        cardIdsOrCards: any[]
     ): Promise<{ success: boolean; txHash?: string; error?: string }> => {
         setIsLoading(true);
         setError(null);
         try {
+            const signerAddress = typeof signerOrAddress === 'string'
+                ? signerOrAddress : (signerOrAddress?.address || '');
+            if (!signerAddress) throw new Error('Wallet not connected');
+            // Accept both number[] and CardData[]
+            const cardIds = cardIdsOrCards.map((c: any) =>
+                typeof c === 'number' ? c : Number(c?.tokenId ?? c?.id ?? c)
+            );
             if (cardIds.length !== 5) throw new Error('Must select exactly 5 cards');
             const hash = await callContract('enter_tournament', [
                 signerAddress,
@@ -75,6 +82,13 @@ export function useTournament() {
                 cardIds,
             ], signerAddress);
             await waitForTransaction(hash);
+            // Register player for leaderboard tracking
+            const apiBase = (import.meta as any).env?.VITE_API_URL || '';
+            fetch(`${apiBase}/api/leaderboard/${tournamentId}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: signerAddress }),
+            }).catch(() => {});
             return { success: true, txHash: hash };
         } catch (e: any) {
             const msg = e?.message || 'Enter tournament failed';
@@ -106,12 +120,15 @@ export function useTournament() {
     }, []);
 
     const unlockCards = useCallback(async (
-        signerAddress: string,
+        signerOrAddress: any,
         tournamentId: number
     ): Promise<{ success: boolean; error?: string }> => {
         setIsLoading(true);
         setError(null);
         try {
+            const signerAddress = typeof signerOrAddress === 'string'
+                ? signerOrAddress : (signerOrAddress?.address || address || '');
+            if (!signerAddress) throw new Error('Wallet not connected');
             const hash = await callContract('unlock_cards', [signerAddress, tournamentId], signerAddress);
             await waitForTransaction(hash);
             return { success: true };
@@ -169,12 +186,24 @@ export function useTournament() {
         return { success: false, error: 'Prize distribution is handled by admin.' };
     }, []);
 
+
+    const getNextTournamentId = useCallback(async (): Promise<number> => {
+        try {
+            for (let id = 50; id >= 1; id--) {
+                const t = await readContract<any>('get_tournament', [id]).catch(() => null);
+                if (t && Number(t.registration_start ?? 0n) > 0) return id + 1;
+            }
+            return 1;
+        } catch { return 1; }
+    }, []);
+
     return {
         isLoading,
         error,
         getTournament,
         getActiveTournament,
         getActiveTournamentId,
+        getNextTournamentId,
         canRegister,
         getUserScoreInfo,
         getUserLineup,
@@ -184,6 +213,7 @@ export function useTournament() {
         unlockCards,
         hasEntered,
         getUserScore,
+        getMyScore: getUserScore,
     };
 }
 

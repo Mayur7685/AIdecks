@@ -51,6 +51,13 @@ pub fn enter_tournament(env: Env, player: Address, tournament_id: u32, card_ids:
     env.storage().persistent().set(&entered_key, &true);
     env.storage().persistent().set(&DataKey::PlayerLineup(tournament_id, player.clone()), &card_ids);
 
+    // Track player in tournament players list for leaderboard
+    let mut players: Vec<Address> = env.storage().persistent()
+        .get(&DataKey::TournamentPlayers(tournament_id))
+        .unwrap_or(Vec::new(&env));
+    players.push_back(player.clone());
+    env.storage().persistent().set(&DataKey::TournamentPlayers(tournament_id), &players);
+
     t.entry_count += 1;
     env.storage().persistent().set(&DataKey::Tournament(tournament_id), &t);
 
@@ -110,7 +117,7 @@ pub fn calculate_score(env: Env, player: Address, tournament_id: u32) {
     env.events().publish((symbol_short!("score"), player), (tournament_id, total));
 }
 
-pub fn finalize_tournament(env: Env, tournament_id: u32) {
+pub fn finalize_tournament(env: Env, tournament_id: u32, scores: Vec<u64>) {
     let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
     admin.require_auth();
 
@@ -118,13 +125,103 @@ pub fn finalize_tournament(env: Env, tournament_id: u32) {
         .get(&DataKey::Tournament(tournament_id)).unwrap();
     assert_eq!(t.status, 0, "already finalized");
     assert!(env.ledger().timestamp() >= t.end_time, "tournament not ended");
+    assert_eq!(scores.len(), 19u32, "must provide 19 scores");
+
+    // Store scores
+    env.storage().persistent().set(&DataKey::StartupScores(tournament_id), &StartupScores { scores: scores.clone() });
+
+    // Get all players
+    let players: Vec<Address> = env.storage().persistent()
+        .get(&DataKey::TournamentPlayers(tournament_id))
+        .unwrap_or(Vec::new(&env));
+
+    // Calculate scores for all players and collect (score, address) pairs
+    let mut player_scores: Vec<(u64, Address)> = Vec::new(&env);
+
+    for player in players.iter() {
+        let scored_key = DataKey::PlayerScored(tournament_id, player.clone());
+        if env.storage().persistent().has(&scored_key) { continue; }
+
+        if let Some(lineup) = env.storage().persistent()
+            .get::<DataKey, Vec<u32>>(&DataKey::PlayerLineup(tournament_id, player.clone()))
+        {
+            let mut total: u64 = 0;
+            for tid in lineup.iter() {
+                if let Some(card) = env.storage().persistent()
+                    .get::<DataKey, CardData>(&DataKey::Card(tid))
+                {
+                    let idx = (card.startup_id - 1) as u32;
+                    let base = scores.get(idx).unwrap_or(0);
+                    total += base * card.level as u64;
+                }
+            }
+            env.storage().persistent().set(&DataKey::PlayerScore(tournament_id, player.clone()), &total);
+            env.storage().persistent().set(&scored_key, &true);
+            let prev: u64 = env.storage().persistent()
+                .get(&DataKey::TotalTournamentScore(tournament_id)).unwrap_or(0);
+            env.storage().persistent().set(&DataKey::TotalTournamentScore(tournament_id), &(prev + total));
+
+            // Unlock cards
+            for tid in lineup.iter() {
+                if let Some(mut card) = env.storage().persistent()
+                    .get::<DataKey, CardData>(&DataKey::Card(tid))
+                {
+                    card.locked = false;
+                    env.storage().persistent().set(&DataKey::Card(tid), &card);
+                }
+            }
+
+            player_scores.push_back((total, player.clone()));
+        }
+    }
+
+    // Sort by score descending (simple bubble sort — small player count)
+    let n = player_scores.len();
+    for i in 0..n {
+        for j in 0..n.saturating_sub(i + 1) {
+            let (score_j, _) = player_scores.get(j).unwrap();
+            let (score_j1, _) = player_scores.get(j + 1).unwrap();
+            if score_j < score_j1 {
+                let a = player_scores.get(j).unwrap();
+                let b = player_scores.get(j + 1).unwrap();
+                player_scores.set(j, b);
+                player_scores.set(j + 1, a);
+            }
+        }
+    }
+
+    // Distribute prizes: 50% to 1st, 30% to 2nd, rest to admin
+    let prize_pool = t.prize_pool;
+    if prize_pool > 0 && n > 0 {
+        let xlm_token: Address = env.storage().instance().get(&DataKey::XlmToken).unwrap();
+        let xlm = token::Client::new(&env, &xlm_token);
+
+        let first_prize = prize_pool * 50 / 100;
+        let second_prize = if n > 1 { prize_pool * 30 / 100 } else { 0 };
+        let admin_share = prize_pool - first_prize - second_prize;
+
+        if first_prize > 0 {
+            let (_, winner1) = player_scores.get(0).unwrap();
+            let claimed1 = DataKey::PrizeClaimed(tournament_id, winner1.clone());
+            xlm.transfer(&admin, &winner1, &first_prize);
+            env.storage().persistent().set(&claimed1, &true);
+            t.prize_pool -= first_prize;
+        }
+        if second_prize > 0 {
+            let (_, winner2) = player_scores.get(1).unwrap();
+            let claimed2 = DataKey::PrizeClaimed(tournament_id, winner2.clone());
+            xlm.transfer(&admin, &winner2, &second_prize);
+            env.storage().persistent().set(&claimed2, &true);
+            t.prize_pool -= second_prize;
+        }
+        // admin_share stays in prize_pool (admin can withdraw via distribute_prize)
+        let _ = admin_share;
+    }
 
     t.status = 2;
     env.storage().persistent().set(&DataKey::Tournament(tournament_id), &t);
-
     env.events().publish((symbol_short!("tourn_fin"), admin), tournament_id);
 }
-
 pub fn distribute_prize(env: Env, winner: Address, amount: i128, tournament_id: u32) {
     let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
     admin.require_auth();

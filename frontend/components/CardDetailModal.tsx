@@ -20,6 +20,7 @@ interface CardDetailModalProps {
     data: CardDetailData | null;
     cardData?: CardData | null;
     onClose: () => void;
+    isListed?: boolean;
 }
 
 const RARITY_COLORS: Record<string, string> = {
@@ -29,7 +30,7 @@ const RARITY_COLORS: Record<string, string> = {
     Common: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
 };
 
-const CardDetailModal: React.FC<CardDetailModalProps> = ({ data, cardData, onClose }) => {
+const CardDetailModal: React.FC<CardDetailModalProps> = ({ data, cardData, onClose, isListed }) => {
     if (!data && !cardData) return null;
 
     const displayData = cardData || data;
@@ -182,7 +183,11 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({ data, cardData, onClo
 
                         {/* Card Status */}
                         <div className="flex flex-wrap gap-2">
-                            {isLocked && (
+                            {isListed ? (
+                                <span className="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/20 text-xs font-semibold">
+                                    Listed on Marketplace
+                                </span>
+                            ) : isLocked && (
                                 <span className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 border border-red-500/20 text-xs font-semibold">
                                     Locked in Tournament
                                 </span>

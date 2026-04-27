@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { CardData, sortByRarity } from '../types';
-import { Layers, Package, Minus, Plus, ChevronDown, BoxSelect, ChevronRight } from 'lucide-react';
+import { Layers, Package, Plus, ChevronDown, BoxSelect, ChevronRight } from 'lucide-react';
 import { usePacks } from '../hooks/usePacks';
 import { useWalletContext } from '../context/WalletContext';
 import { formatXTZ, getPackNFTContract } from '../lib/stellar';
@@ -86,7 +86,9 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
     const [packCount, setPackCount] = useState(1);
     const [cardsDealtCount, setCardsDealtCount] = useState(0);
     const [mintedCards, setMintedCards] = useState<CardData[]>([]);
-    const packPrice = getActiveNetwork().packPrice;
+    const [packPrice, setPackPrice] = useState<bigint>(getActiveNetwork().packPrice);
+    const { getPackPrice: fetchPackPrice } = usePacks();
+    useEffect(() => { fetchPackPrice().then(p => setPackPrice(p)); }, []);
     const [txError, setTxError] = useState<{ friendly: string; raw: string } | null>(null);
     const [pendingCards, setPendingCards] = useState<CardData[] | null>(null);
 
@@ -238,12 +240,11 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
 
             const result = await buyPack(signer, packCount);
 
-            if (result.success && result.packTokenIds) {
-                setBoughtPackIds(result.packTokenIds);
-                setSelectedPackId(result.packTokenIds[0]);
+            if (result.success) {
                 refreshBalance();
-                onPacksBought?.(result.packTokenIds);
-                setStage('bought');
+                onPacksBought?.([]);
+                setStage('select');
+                onClose();
             } else {
                 setTxError(friendlyError(result.error || 'Failed to buy pack', result.rawError));
                 setStage('select');
@@ -423,14 +424,9 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
             {/* --- STAGE: PACK SELECTION --- */}
             {stage === 'select' && (
                 <div className="flex flex-col items-center w-full h-full px-4 py-4 sm:py-0 sm:justify-center">
-                    {/* 3D pack — takes upper space */}
+                    {/* 3D pack */}
                     <div className="relative w-full flex-1 min-h-0 max-h-[55%] shrink mb-2">
                         <ModelViewer3D mode="interactive" cameraZ={4.5} modelScale={1} paused={!isOpen} />
-                        {packCount > 1 && (
-                            <div className="absolute top-2 right-2 w-9 h-9 bg-yc-aleo rounded-full flex items-center justify-center text-white font-black text-base shadow-lg shadow-lime-500/30 z-10">
-                                {packCount}x
-                            </div>
-                        )}
                     </div>
 
                     {/* Owned packs indicator */}
@@ -451,32 +447,9 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
                         </div>
                     )}
 
-                    {/* Pack count selector */}
-                    <div className="flex items-center gap-3 sm:gap-4 mb-3 shrink-0">
-                        <button
-                            onClick={() => setPackCount(Math.max(1, packCount - 1))}
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors active:scale-90"
-                        >
-                            <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                        <div className="text-center min-w-[80px] sm:min-w-[100px]">
-                            <p className="text-2xl sm:text-3xl font-black text-white">{packCount}</p>
-                            <p className="text-gray-500 text-[10px] sm:text-xs uppercase tracking-wider">{packCount === 1 ? 'Pack' : 'Packs'}</p>
-                        </div>
-                        <button
-                            onClick={() => setPackCount(Math.min(5, packCount + 1))}
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors active:scale-90"
-                        >
-                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                    </div>
-
                     {/* Price */}
                     <div className="text-center mb-3 shrink-0">
-                        <p className="text-yc-aleo font-mono font-bold text-xl sm:text-2xl">{formatXTZ(totalPrice)} {currencySymbol()}</p>
-                        {packCount > 1 && (
-                            <p className="text-gray-500 text-xs mt-1">{formatXTZ(packPrice)} per pack</p>
-                        )}
+                        <p className="text-yc-aleo font-mono font-bold text-xl sm:text-2xl">{formatXTZ(packPrice)} {currencySymbol()}</p>
                     </div>
 
                     {/* Error */}
@@ -488,7 +461,7 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
                         className="bg-yc-aleo hover:bg-orange-600 text-white px-8 sm:px-10 py-3 sm:py-3.5 rounded-xl font-black text-sm sm:text-base uppercase tracking-wider transition-all shadow-lg shadow-lime-500/20 active:scale-95 mb-3 shrink-0"
                     >
                         <Package className="w-4 h-4 sm:w-5 sm:h-5 inline-block mr-2 -mt-0.5" />
-                        {packCount === 1 ? 'Buy Pack' : `Buy ${packCount} Packs`}
+                        Buy Pack
                     </button>
 
                     <button onClick={onClose} className="text-gray-500 hover:text-white text-sm font-medium transition-colors shrink-0">
@@ -510,7 +483,7 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
                             : `Buying ${packCount} pack NFTs`
                         }
                     </p>
-                    <div className="text-yc-aleo font-mono font-bold text-lg mb-6">{formatXTZ(totalPrice)} {currencySymbol()}</div>
+                    <div className="text-yc-aleo font-mono font-bold text-lg mb-6">{formatXTZ(packPrice)} {currencySymbol()}</div>
                     <button onClick={() => { setStage('select'); }} className="text-gray-500 hover:text-white text-sm font-medium transition-colors">Cancel</button>
                 </div>
             )}
@@ -725,7 +698,7 @@ const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ isOpen, onClose, on
                     {/* Header */}
                     <div className="flex-shrink-0 pt-4 sm:pt-8 pb-2 sm:pb-4 text-center">
                         <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter animate-[fadeInUp_0.5s_ease-out]">
-                            {isMultiPack ? `${batchTotal || packCount} Packs Opened!` : 'Pack Opened!'}
+                            {'Pack Opened!'}
                         </h2>
                         <p className="text-gray-400 text-xs sm:text-sm mt-1">{mintedCards.length} cards acquired</p>
                         {isMultiPack && mintedCards.length > 10 && (

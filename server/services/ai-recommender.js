@@ -1,7 +1,7 @@
 /**
- * AI Card Recommender using OpenRouter API (UnicornX / Aleo edition).
+ * AI Card Recommender using OpenRouter API.
  *
- * On Aleo, a player's card collection is private and held off-chain on the
+ * a player's card collection is private and held off-chain on the
  * frontend. The frontend therefore POSTs the player's decrypted card list
  * together with startup activity data — we never try to read cards from chain.
  *
@@ -15,7 +15,7 @@
  *   `recommended` is an array of 5 identifiers — tokenId if provided on the
  *   card, otherwise startupId — so the frontend can map back to its cards.
  *
- * CommonJS module (to match the rest of the Aleo server).
+ * CommonJS module.
  */
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -81,7 +81,7 @@ function getStartupNameMap() {
 /**
  * Pick the identifier we'll use when returning recommendations. Frontend
  * supplies tokenId for off-chain private cards; if not present we fall back
- * to startupId+level composite (unique per card on Aleo).
+ * to startupId+level composite
  */
 function cardKey(card) {
     if (card.tokenId !== undefined && card.tokenId !== null) return card.tokenId;

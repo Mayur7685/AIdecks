@@ -94,13 +94,16 @@ export function useMarketplaceV2() {
             const res = await fetch('/api/marketplace/listings').catch(() => null);
             if (res?.ok) {
                 const data = await res.json();
-                return data.listings ?? [];
+                return (data.listings ?? []).map((l: any) => ({
+                    ...l,
+                    price: BigInt(l.price ?? '0'),
+                }));
             }
             return [];
         } catch { return []; }
     }, []);
 
-    // buyCard(listingId, price) — alias for buyListing using tokenId as listingId
+    // buyCard(tokenId, price) — alias for buyListing
     const buyCard = useCallback(async (
         tokenId: number | bigint,
         _price: bigint
@@ -109,5 +112,48 @@ export function useMarketplaceV2() {
         return buyListing(address, Number(tokenId));
     }, [address, buyListing]);
 
-    return { isLoading, error, getListing, getActiveListings, listCard, cancelListing, buyListing, buyCard };
+    // Get listings for a specific seller (user's own listings)
+    const getUserListings = useCallback(async (sellerAddress: string): Promise<(CardListing & { listingId: number })[]> => {
+        const all = await getActiveListings();
+        return all.filter(l => l.seller?.toLowerCase() === sellerAddress?.toLowerCase());
+    }, [getActiveListings]);
+
+    // Stubs for Aleo features not on Stellar
+    const getMyBids = useCallback(async () => [], []);
+    const getUserSoldItems = useCallback(async (addr?: string): Promise<any[]> => {
+        try {
+            const a = addr || address;
+            if (!a) return [];
+            const res = await fetch(`/api/marketplace/history?address=${a}&limit=50`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.trades ?? [];
+        } catch { return []; }
+    }, [address]);
+    const getActiveAuctions = useCallback(async () => [], []);
+    const bidOnAuction = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const finalizeAuction = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const placeBid = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const acceptBid = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const getBidsForToken = useCallback(async () => [], []);
+    const cancelBid = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const listPack = useCallback(async (addr: string, tokenId: number, price: bigint) => listCard(addr, tokenId, price), [listCard]);
+    const createAuction = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const createPackAuction = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const cancelPackListing = useCallback(async (addr: string, tokenId: number) => cancelListing(addr, tokenId), [cancelListing]);
+    const buyPackListing = useCallback(async (addr: string, tokenId: number) => buyListing(addr, tokenId), [buyListing]);
+    const cancelAuction = useCallback(async () => ({ success: false, error: 'Not supported' }), []);
+    const getTokenStats = useCallback(async () => null, []);
+    const getTokenSaleHistory = useCallback(async () => [], []);
+
+    return {
+        isLoading, loading: isLoading, error,
+        getListing, getActiveListings, getUserListings,
+        listCard, listPack, cancelListing, cancelPackListing,
+        buyListing, buyCard, buyPackListing,
+        getMyBids, getUserSoldItems, getActiveAuctions,
+        bidOnAuction, finalizeAuction, placeBid, acceptBid,
+        getBidsForToken, cancelBid, createAuction, createPackAuction,
+        cancelAuction, getTokenStats, getTokenSaleHistory,
+    };
 }

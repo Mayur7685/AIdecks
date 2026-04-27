@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const mockCards = [
-    { id: 6, name: 'Browser Use', rarity: 'Epic', image: '/images/6.png', color: 'from-blue-500 to-cyan-400' },
-    { id: 1, name: 'Openclaw', rarity: 'Legendary', image: '/images/1.png', color: 'from-yc-aleo to-pink-500' },
+    { id: 6, name: 'Meta AI', rarity: 'Epic', image: '/images/6.png', color: 'from-blue-500 to-cyan-400' },
+    { id: 1, name: 'OpenAI', rarity: 'Legendary', image: '/images/1.png', color: 'from-yc-aleo to-pink-500' },
     { id: 4, name: 'OpenAI', rarity: 'Legendary', image: '/images/4.png', color: 'from-amber-400 to-yellow-500' },
     { id: 5, name: 'Anthropic', rarity: 'Legendary', image: '/images/5.png', color: 'from-orange-500 to-orange-500' },
-    { id: 7, name: 'Dedalus Labs', rarity: 'Epic', image: '/images/7.png', color: 'from-green-500 to-emerald-400' },
+    { id: 7, name: 'Cursor', rarity: 'Epic', image: '/images/7.png', color: 'from-green-500 to-emerald-400' },
 ];
 
 const Interactive3DCards: React.FC = () => {

@@ -34,13 +34,24 @@ export interface TournamentStats {
  * Hook to fetch leaderboard data.
  * Uses stale-while-revalidate: shows existing data during refetch, no loading flicker.
  */
-export function useLeaderboard(_tournamentId: number | null, _limit: number = 100) {
-   
-    return {
-        leaderboard: [] as LeaderboardEntry[],
-        loading: false,
-        error: null as string | null,
-    };
+export function useLeaderboard(tournamentId: number | null, _limit: number = 100) {
+    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!tournamentId) return;
+        setLoading(true);
+        fetchJson(apiUrl(`/leaderboard/${tournamentId}`))
+            .then(data => {
+                const entries = Array.isArray(data?.data) ? data.data : [];
+                setLeaderboard(entries);
+            })
+            .catch(e => setError(e.message))
+            .finally(() => setLoading(false));
+    }, [tournamentId]);
+
+    return { leaderboard, loading, error };
 }
 
 /**

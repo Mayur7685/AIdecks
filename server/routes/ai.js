@@ -4,16 +4,6 @@ const { generateRecommendation } = require('../services/ai-recommender');
 const { getAggregatedScores } = require('../services/daily-scorer');
 
 /**
- * POST /api/ai/card-recommendation
- *
- * Body:
- *   {
- *     address:       string,                              // player address (informational)
- *     cards:         [{ startupId, level, tokenId?, ... }],
- *     startupScores: { s1..s19: number }                  // optional — we fallback to stored daily scores
- *   }
- *
- * On Aleo the player's card list is private, so the FRONTEND must provide it.
  * If `startupScores` is omitted we aggregate the last 10 days of stored daily
  * scores from disk.
  */
@@ -24,8 +14,8 @@ router.post('/card-recommendation', async (req, res) => {
         if (!address || typeof address !== 'string') {
             return res.status(400).json({ success: false, error: 'address required' });
         }
-        if (!/^aleo1[a-z0-9]+$/.test(address)) {
-            return res.status(400).json({ success: false, error: 'address must match /^aleo1[a-z0-9]+$/' });
+        if (!/^[GC][A-Z0-9]{54,}$/.test(address)) {
+            return res.status(400).json({ success: false, error: 'invalid Stellar address' });
         }
         if (!Array.isArray(cards)) {
             return res.status(400).json({ success: false, error: 'cards array required' });

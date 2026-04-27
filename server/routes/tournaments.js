@@ -11,41 +11,60 @@ function adminAuth(req, res, next) {
   next();
 }
 
+// GET /api/tournaments — list all tournaments
+router.get('/', async (req, res) => {
+  try {
+    const out = [];
+    for (let id = 1; id <= 20; id++) {
+      const t = await readContract('get_tournament', [id]).catch(() => null);
+      if (!t) continue;
+      out.push({
+        id,
+        status: Number(t.status ?? t[3] ?? 0n),
+        prize_pool: Number(BigInt(t.prize_pool ?? 0)),
+        entry_count: Number(t.entry_count ?? t[4] ?? 0n),
+        reg_height: Number(t.registration_start ?? t[0] ?? 0n),
+        start_height: Number(t.start_time ?? t[1] ?? 0n),
+        end_height: Number(t.end_time ?? t[2] ?? 0n),
+      });
+    }
+    res.json(out);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
 // GET /api/tournaments/active
 router.get('/active', async (req, res) => {
   try {
-    const nextId = await readContract('get_next_tournament_id', []).catch(() => 1);
     const now = Math.floor(Date.now() / 1000);
-    for (let id = Number(nextId) - 1; id >= 1; id--) {
+    let mostRecent = null;
+    for (let id = 1; id <= 50; id++) {
       const t = await readContract('get_tournament', [id]).catch(() => null);
-      if (!t) continue;
-      const regStart = Number(t.registration_start ?? t[0] ?? 0);
-      const startTime = Number(t.start_time ?? t[1] ?? 0);
-      const endTime = Number(t.end_time ?? t[2] ?? 0);
-      const status = Number(t.status ?? t[3] ?? 0);
-      const entryCount = Number(t.entry_count ?? t[4] ?? 0);
-      const prizePool = Number(t.prize_pool ?? t[5] ?? 0);
-
-      let statusStr = status === 0
+      if (!t) break;
+      const regStart = Number(t.registration_start ?? 0n);
+      if (regStart === 0) break;
+      const startTime = Number(t.start_time ?? 0n);
+      const endTime = Number(t.end_time ?? 0n);
+      const status = Number(t.status ?? 0n);
+      const entryCount = Number(t.entry_count ?? 0n);
+      const prizePool = Number(BigInt(t.prize_pool ?? 0));
+      const statusStr = status === 0
         ? (now < startTime ? 'registration' : now < endTime ? 'active' : 'ended')
         : status === 2 ? 'finalized' : 'cancelled';
-
       const shaped = {
-        id,
-        registrationStart: regStart,
-        startTime,
-        endTime,
-        status: statusStr,
-        entryCount,
+        id, registrationStart: regStart, startTime, endTime,
+        status: statusStr, entryCount,
         prizePool: (prizePool / 10_000_000).toFixed(2),
       };
+      mostRecent = shaped;
       if (statusStr === 'registration' || statusStr === 'active') {
         return res.json({ success: true, data: shaped });
       }
-      if (id === Number(nextId) - 1) return res.json({ success: true, data: shaped });
     }
-    res.json({ success: true, data: null });
+    res.json({ success: true, data: mostRecent });
   } catch (err) {
+    console.error('[tournaments/active]', err.message);
     res.json({ success: false, data: null, error: err.message });
   }
 });

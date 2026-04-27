@@ -201,7 +201,7 @@ const Marketplace: React.FC = () => {
     const [loadingNFTs, setLoadingNFTs] = useState(false);
 
     // Activity tab state
-    type ActivityFilter = 'all' | 'listings' | 'auctions' | 'bids' | 'sold';
+    type ActivityFilter = 'all' | 'listings';
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
     const [myListings, setMyListings] = useState<ListingWithMeta[]>([]);
     const [myAuctions, setMyAuctions] = useState<AuctionWithMeta[]>([]);
@@ -647,7 +647,8 @@ const Marketplace: React.FC = () => {
                     setIsSelling(false);
                     return;
                 }
-                const res = await listCard(BigInt(selectedNFT.tokenId), sellPrice);
+                const priceStroops = BigInt(Math.floor(parseFloat(sellPrice) * 10_000_000));
+                const res = await listCard(address!, selectedNFT.tokenId, priceStroops);
                 if (res && (res as any).success === false) throw new Error((res as any).error || 'Listing failed');
                 alert('NFT listed successfully!');
             } else {
@@ -734,20 +735,11 @@ const Marketplace: React.FC = () => {
                 })
             );
 
-            // Enrich sold items with card metadata
-            const enrichedSales = await Promise.all(
-                soldItems.map(async (s) => {
-                    try {
-                        const info = await getCardInfo(Number(s.tokenId));
-                        return { ...s, cardName: info?.name || `Card #${s.tokenId}`, cardImage: info?.image, rarity: info?.rarity };
-                    } catch { return { ...s, cardName: `Card #${s.tokenId}` }; }
-                })
-            );
-
+            // Trades from Horizon — no enrichment needed, render raw
             setMyListings(enrichedListings);
             setMyAuctions(enrichedAuctions);
             setMyBids(enrichedBids);
-            setMySales(enrichedSales);
+            setMySales(soldItems);
         } catch (e) {
         }
         setLoadingActivity(false);
@@ -1146,11 +1138,9 @@ const Marketplace: React.FC = () => {
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                             <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
                                 {([
-                                    { key: 'all', label: 'All', count: myListings.length + myAuctions.length + myBids.length + mySales.length },
+                                    { key: 'all', label: 'All', count: myListings.length },
                                     { key: 'listings', label: 'Listings', count: myListings.length },
-                                    { key: 'auctions', label: 'Auctions', count: myAuctions.length },
-                                    { key: 'bids', label: 'Bids', count: myBids.length },
-                                    { key: 'sold', label: 'Sold', count: mySales.length },
+                                    { key: 'history', label: 'History', count: mySales.length },
                                 ] as { key: ActivityFilter; label: string; count: number }[]).map(f => (
                                     <button
                                         key={f.key}
@@ -1219,97 +1209,30 @@ const Marketplace: React.FC = () => {
                                 )}
 
                                 {/* My Auctions */}
-                                {(activityFilter === 'all' || activityFilter === 'auctions') && sortedMyAuctions.length > 0 && (
-                                    <div>
-                                        {activityFilter === 'all' && <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Gavel className="w-3.5 h-3.5" /> My Auctions</h3>}
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 md:gap-4">
-                                            {sortedMyAuctions.map(auction => (
-                                                <div key={`a-${auction.auctionId}`} className="glass-panel glass-panel-hover rounded-xl overflow-hidden transition-all group">
-                                                    <div className="relative overflow-hidden" style={{ aspectRatio: '591/1004' }}>
-                                                        {auction.isPack ? (
-                                                            <PackVisual tokenId={auction.tokenId} className="w-full h-full rounded-none" />
-                                                        ) : (
-                                                            <img src={auction.cardImage || '/placeholder-card.png'} alt={auction.cardName} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
-                                                        )}
-                                                        <div className={`absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold rounded ${auction.isEnded ? 'bg-red-600 text-white' : 'bg-black/80 text-yc-aleo'}`}>
-                                                            <Clock className="w-2.5 h-2.5" />
-                                                            {auction.timeLeft}
-                                                        </div>
-                                                        <div className="absolute top-2 left-2 bg-orange-600/90 text-white text-[9px] font-bold px-2 py-0.5 rounded">Auction</div>
-                                                    </div>
-                                                    <div className="p-1.5 md:p-3">
-                                                        <p className="text-gray-900 dark:text-white font-bold text-[11px] md:text-sm">{safeFormatXTZ(auction.highestBid > 0n ? auction.highestBid : auction.startPrice)} {currencySymbol()}</p>
-                                                        <p className="text-[9px] text-gray-400">{auction.highestBid > 0n ? 'Current bid' : 'Starting price'}</p>
-                                                        {auction.isEnded ? (
-                                                            <button
-                                                                onClick={() => handleFinalizeAuction(auction)}
-                                                                disabled={biddingId === Number(auction.auctionId)}
-                                                                className="w-full mt-1.5 px-2 py-1 md:py-1.5 rounded-lg font-bold text-[10px] md:text-xs bg-green-600 text-white hover:bg-green-700 transition-all"
-                                                            >
-                                                                {biddingId === Number(auction.auctionId) ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Finalize'}
-                                                            </button>
-                                                        ) : auction.highestBidder === '0x0000000000000000000000000000000000000000' || !auction.highestBidder ? (
-                                                            <button
-                                                                onClick={() => handleCancelAuction(auction)}
-                                                                disabled={cancellingId === Number(auction.auctionId)}
-                                                                className="w-full mt-1.5 px-2 py-1 md:py-1.5 rounded-lg font-bold text-[10px] md:text-xs bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all"
-                                                            >
-                                                                {cancellingId === Number(auction.auctionId) ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Cancel Auction'}
-                                                            </button>
-                                                        ) : (
-                                                            <p className="mt-1.5 text-[10px] text-gray-400 text-center">Has bids</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
 
                                 {/* My Bids */}
-                                {(activityFilter === 'all' || activityFilter === 'bids') && sortedMyBids.length > 0 && (
-                                    <div>
-                                        {activityFilter === 'all' && <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><DollarSign className="w-3.5 h-3.5" /> My Bids</h3>}
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 md:gap-4">
-                                            {sortedMyBids.map(bid => (
-                                                <div key={`b-${bid.bidId}`} className="glass-panel glass-panel-hover rounded-xl overflow-hidden transition-all group">
-                                                    <div className="relative overflow-hidden" style={{ aspectRatio: '591/1004' }}>
-                                                        <img src={bid.cardImage || '/placeholder-card.png'} alt={bid.cardName} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
-                                                        <div className="absolute top-2 left-2 bg-blue-600/90 text-white text-[9px] font-bold px-2 py-0.5 rounded">Bid</div>
-                                                    </div>
-                                                    <div className="p-1.5 md:p-3">
-                                                        <p className="text-gray-900 dark:text-white font-bold text-[11px] md:text-sm">{safeFormatXTZ(bid.amount)} {currencySymbol()}</p>
-                                                        <p className="text-[9px] text-gray-400">Expires: {safeFormatDate(bid.expiration)}</p>
-                                                        <button
-                                                            onClick={() => handleCancelBid(bid.bidId)}
-                                                            disabled={cancellingBidId === Number(bid.bidId)}
-                                                            className="w-full mt-1.5 px-2 py-1 md:py-1.5 rounded-lg font-bold text-[10px] md:text-xs bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all"
-                                                        >
-                                                            {cancellingBidId === Number(bid.bidId) ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Cancel Bid'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
 
-                                {/* Sold Items */}
-                                {(activityFilter === 'all' || activityFilter === 'sold') && sortedMySales.length > 0 && (
-                                    <div>
-                                        {activityFilter === 'all' && <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-500" /> Sold</h3>}
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 md:gap-4">
-                                            {sortedMySales.map((sale, idx) => (
-                                                <div key={`sold-${idx}`} className="glass-panel rounded-xl overflow-hidden">
-                                                    <div className="relative overflow-hidden" style={{ aspectRatio: '591/1004' }}>
-                                                        <img src={(sale as any).cardImage || '/placeholder-card.png'} alt={(sale as any).cardName} className="w-full h-full object-contain opacity-75" />
-                                                        <div className="absolute top-2 left-2 bg-green-600/90 text-white text-[9px] font-bold px-2 py-0.5 rounded">Sold</div>
-                                                        <div className="absolute top-2 right-2 bg-black/60 text-white text-[9px] px-2 py-0.5 rounded">{sale.saleType === 0 ? 'Listing' : 'Bid'}</div>
+
+                                {/* History from Horizon */}
+                                {(activityFilter === 'all' || activityFilter === 'history') && (mySales as any[]).length > 0 && (
+                                    <div className="mb-6">
+                                        {activityFilter === 'all' && <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Transaction History</h3>}
+                                        <div className="space-y-2">
+                                            {(mySales as any[]).map((t: any, idx: number) => (
+                                                <div key={`${t.txHash}-${idx}`} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/[0.02] rounded-xl border border-gray-100 dark:border-white/[0.06]">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                                            t.type === 'buy_listing' ? 'bg-green-500/10 text-green-500' :
+                                                            t.type === 'list_card' ? 'bg-blue-500/10 text-blue-500' :
+                                                            'bg-gray-500/10 text-gray-400'
+                                                        }`}>
+                                                            {t.type === 'buy_listing' ? 'Bought' : t.type === 'list_card' ? 'Listed' : 'Cancelled'}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 font-mono">{t.txHash?.slice(0, 12)}...</span>
                                                     </div>
-                                                    <div className="p-1.5 md:p-3">
-                                                        <p className="text-gray-900 dark:text-white font-bold text-[11px] md:text-sm">{safeFormatXTZ(sale.price)} {currencySymbol()}</p>
-                                                        <p className="text-[9px] text-gray-400 truncate">To: {sale.buyer.slice(0, 6)}…{sale.buyer.slice(-4)}</p>
-                                                        <p className="text-[9px] text-gray-500">{new Date(Number(sale.timestamp) * 1000).toLocaleDateString()}</p>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xs text-gray-400">{new Date(t.timestamp).toLocaleDateString()}</span>
+                                                        <a href={`https://stellar.expert/explorer/testnet/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-yc-aleo hover:underline">View →</a>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1319,25 +1242,21 @@ const Marketplace: React.FC = () => {
 
                                 {/* Empty state */}
                                 {!loadingActivity && (
-                                    (activityFilter === 'all' && myListings.length === 0 && myAuctions.length === 0 && myBids.length === 0 && mySales.length === 0) ||
+                                    (activityFilter === 'all' && myListings.length === 0 && (mySales as any[]).length === 0) ||
                                     (activityFilter === 'listings' && myListings.length === 0) ||
-                                    (activityFilter === 'auctions' && myAuctions.length === 0) ||
-                                    (activityFilter === 'bids' && myBids.length === 0) ||
-                                    (activityFilter === 'sold' && mySales.length === 0)
+                                    (activityFilter === 'history' && (mySales as any[]).length === 0)
                                 ) && (
-                                        <div className="flex flex-col items-center justify-center py-16 glass-panel rounded-xl">
-                                            <Activity className="w-12 h-12 text-gray-400 dark:text-gray-600 mb-3" />
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No Activity</h3>
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm text-center max-w-sm">
-                                                {!isConnected ? 'Connect your wallet to see your marketplace activity.' :
-                                                    activityFilter === 'listings' ? "You haven't listed any NFTs yet." :
-                                                        activityFilter === 'auctions' ? "You haven't created any auctions yet." :
-                                                            activityFilter === 'bids' ? "You haven't placed any bids yet." :
-                                                                activityFilter === 'sold' ? "No sold NFTs found." :
-                                                                    "No marketplace activity yet. List an NFT or place a bid to get started!"}
-                                            </p>
-                                        </div>
-                                    )}
+                                    <div className="flex flex-col items-center justify-center py-16 glass-panel rounded-xl">
+                                        <Activity className="w-12 h-12 text-gray-400 dark:text-gray-600 mb-3" />
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No Activity</h3>
+                                        <p className="text-gray-500 dark:text-gray-400 text-sm text-center max-w-sm">
+                                            {!isConnected ? 'Connect your wallet to see your marketplace activity.' :
+                                                activityFilter === 'listings' ? "You haven't listed any NFTs yet." :
+                                                activityFilter === 'history' ? "No transaction history found." :
+                                                "No marketplace activity yet."}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>

@@ -68,9 +68,7 @@ app.get('/api/contracts', (req, res) => {
 });
 
 // ── Leaderboard stub ──────────────────────────────────────────────────────
-app.get('/api/leaderboard/:tournamentId', (req, res) => {
-  res.json({ success: true, data: [] });
-});
+app.use('/api/leaderboard', require('./routes/leaderboard'));
 
 // ── Top startups ──────────────────────────────────────────────────────────
 function topStartupsHandler(req, res) {
@@ -96,6 +94,8 @@ app.use('/api/cards', require('./routes/cards'));
 app.use('/api/startups', require('./routes/startups'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/marketplace', require('./routes/marketplace'));
+app.use('/api/marketplace', require('./routes/marketplaceHistory'));
+app.use('/api/admin', require('./routes/admin'));
 
 // ── Health / Info ─────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
