@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { apiUrl } from '../lib/api';
 import { readContract, callContract, waitForTransaction } from '../lib/stellar';
 import { useWalletContext } from '../context/WalletContext';
 
@@ -91,7 +92,7 @@ export function useMarketplaceV2() {
     // Fetch all active listings by scanning token IDs from backend
     const getActiveListings = useCallback(async (): Promise<(CardListing & { listingId: number })[]> => {
         try {
-            const res = await fetch('/api/marketplace/listings').catch(() => null);
+            const res = await fetch(apiUrl('/marketplace/listings')).catch(() => null);
             if (res?.ok) {
                 const data = await res.json();
                 return (data.listings ?? []).map((l: any) => ({
@@ -124,7 +125,7 @@ export function useMarketplaceV2() {
         try {
             const a = addr || address;
             if (!a) return [];
-            const res = await fetch(`/api/marketplace/history?address=${a}&limit=50`);
+            const res = await fetch(apiUrl(`/marketplace/history?address=${a}&limit=50`));
             if (!res.ok) return [];
             const data = await res.json();
             return data.trades ?? [];

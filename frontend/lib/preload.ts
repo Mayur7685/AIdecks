@@ -94,7 +94,7 @@ async function preloadAll() {
         // Phase 1: tournament + live feed in parallel
         const [tournamentRes, feedRes] = await Promise.all([
             fetch(apiUrl('/tournaments/active')).then(r => r.json()).catch(() => null),
-            fetch('/api/live-feed?limit=15').then(r => r.json()).catch(() => null),
+            fetch(apiUrl('/live-feed?limit=15')).then(r => r.json()).catch(() => null),
         ]);
 
         if (tournamentRes?.success) {

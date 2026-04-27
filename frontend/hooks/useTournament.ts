@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { apiUrl } from '../lib/api';
 import { readContract, callContract, waitForTransaction } from '../lib/stellar';
 
 export interface Tournament {
@@ -41,7 +42,7 @@ export function useTournament() {
 
     const getActiveTournament = useCallback(async (): Promise<Tournament | null> => {
         try {
-            const res = await fetch('/api/tournaments/active');
+            const res = await fetch(apiUrl('/tournaments/active'));
             const data = await res.json();
             if (!data.success || !data.data) return null;
             const d = data.data;
