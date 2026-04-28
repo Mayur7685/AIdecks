@@ -257,6 +257,24 @@ cargo test
 
 ---
 
+## 📸 Screenshots                                                                                                                                                                                                                                                   
+### Wallet Integration                                                                                                                                                                                                                                              
+![Connect Wallet](./submission-images/wallet-integration-ss/w1.png)                                                                                                                                                                                                 
+![Wallet Connected](./submission-images/wallet-integration-ss/w2.png)                                                                                                                                                                                               
+![Transaction Signing](./submission-images/wallet-integration-ss/w3.png)                                                                                                                                                                                            
+![Balance Display](./submission-images/wallet-integration-ss/w4.png)                                                                                                                                                                                                
+
+### Mobile Responsive                                                                                                                                                                                                                                               
+![Mobile Home](./submission-images/Mobile-Responsive/responsive0.png)                                                                                                                                                                                               
+![Mobile Portfolio](./submission-images/Mobile-Responsive/responsive1.png)                                                                                                                                                                                          
+![Mobile Leagues](./submission-images/Mobile-Responsive/responsive2.png)                                                                                                                                                                                            
+![Mobile Marketplace](./submission-images/Mobile-Responsive/responsive3.png)                                                                                                                                                                                        
+                                                                                                                                                                                                                                                                     
+### Contract Tests                                                                                                                                                                                                                                                  
+![Test Results](./submission-images/test-screenshots/test-ss.png)
+
+
+
 ## 🎯 Game Flow
 
 ### For Players

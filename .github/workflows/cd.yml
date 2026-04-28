@@ -1,0 +1,40 @@
+name: CD
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  smoke-test:
+    name: Post-Deploy Smoke Test
+    runs-on: ubuntu-latest
+    needs: []
+    # Wait for Render to finish deploying (~2 min)
+    steps:
+      - name: Wait for Render deploy
+        run: sleep 120
+
+      - name: Backend health check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://aidecks.onrender.com/api/tournaments/active)
+          echo "Backend status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Backend health check failed (got $STATUS)"
+            exit 1
+          fi
+          echo "✅ Backend is up"
+
+      - name: Marketplace listings check
+        run: |
+          RESULT=$(curl -s https://aidecks.onrender.com/api/marketplace/listings)
+          echo "$RESULT" | grep -q '"success":true' && echo "✅ Marketplace OK" || (echo "❌ Marketplace failed"; exit 1)
+
+      - name: Frontend reachability check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://aipacks-stellar.vercel.app)
+          echo "Frontend status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Frontend not reachable (got $STATUS)"
+            exit 1
+          fi
+          echo "✅ Frontend is up"
