@@ -177,7 +177,7 @@ stellar contract invoke \
 | **Contract ID** | `CCIH2IGK6KAKRBTS4VNHAEHB4CK6OUIA3QWOCKEILVFFZ6V6N5XMITRG` |                                                                                                                
 | **Admin Address** | `GCXKQ77XJHWKDGZ5ENGPSJEM22XZVRVYI5WO6JBCIHZGTS7TLSRV6SWW` |                                                                                                              
 | **RPC URL** | `https://soroban-testnet.stellar.org` |                                                                                                                                         
-| **Frontend** | https://aipacks-stellar.vercel.app |                                                                                                                                           
+| **Frontend** | https://aidecks-stellar.vercel.app |                                                                                                                                           
 | **Backend** | https://aidecks.onrender.com |                                                                                                                                                  
 | **Explorer** | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CCIH2IGK6KAKRBTS4VNHAEHB4CK6OUIA3QWOCKEILVFFZ6V6N5XMITRG) |                                          
                                                                                                                                                                                                   
