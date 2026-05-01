@@ -273,6 +273,8 @@ cargo test
 ### Contract Tests                                                                                                                                                                                                                                                  
 ![Test Results](./submission-images/test-screenshots/test-ss.png)
 
+### CI/CD
+<img width="697" height="237" alt="Screenshot 2026-05-01 at 4 02 18 PM" src="https://github.com/user-attachments/assets/c53d5832-58d2-4651-a173-c1661715c7d6" />
 
 
 ## 🎯 Game Flow
